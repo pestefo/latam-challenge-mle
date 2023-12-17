@@ -65,7 +65,12 @@ Results:
 We can see that there is no linear correlation between `delay` and the othe variables.
 The only exception is `min_diff`.
 
-Considering the comments from the Data Scientist that there is no significant differences between both models, and the non-linearity interactions between the target variable and the rest *or* no dependency at all between them makes XGBoost more suitable for this problem.
+Considering:
+1. No significant differences in performance between both models
+1. Non-linearity interactions between the target variable and the rest *and/or* no dependency at all between 
+1. The size of the dataset may be large (XGBoost handles it better)
+
+I propose using XGBoost for this problem. 
 
 ## Part II
 
