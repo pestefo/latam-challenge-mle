@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
+import xgboost as xgb
 
+from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 
 from datetime import datetime
@@ -75,8 +77,28 @@ class DelayModel:
             features (pd.DataFrame): preprocessed data.
             target (pd.DataFrame): target.
         """
+        # Settings
+        TEST_SIZE = 0.33
+        RANDOM_STATE = 42
 
-        return
+        x_train, x_test, y_train, y_test = train_test_split(
+            features, target, test_size=TEST_SIZE, random_state=RANDOM_STATE
+        )
+
+        # Calculating scale
+        n_y0 = len(y_train[y_train == 0])
+        n_y1 = len(y_train[y_train == 1])
+        scale = n_y0 / n_y1
+
+        # Instantiating the model
+        self._model = xgb.XGBClassifier(
+            random_state=1, learning_rate=0.01, scale_pos_weight=scale
+        )
+
+        # Fitting the moel
+        self._model.fit(x_train, y_train)
+
+        return None
 
     def predict(self, features: pd.DataFrame) -> List[int]:
         """
