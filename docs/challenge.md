@@ -11,6 +11,9 @@ As the data scientist is responsible for the analysis, its background rationale 
 
 I found a couple if minor mistakes in the syntaxis related to calling functiions with keywords arguments only in some of the arguments and not all of them.
 
+I found also that the `training_data` defined in 4.a was not used, ergo, it was not used when training the models.
+
+
 ### Model decision
 
 In addition to the DS's analysis, I was interested in the linearity correlation of the `delay` with all the other variables. I used the Cramér's V metric for correlation, it returns a value between 0 and 1which 0 = no association and 1 = complete association. 
