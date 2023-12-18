@@ -45,6 +45,7 @@ class DelayModel:
             random_state=111,
         )
 
+
         # Setting up the features and target training data
         features = pd.concat(
             [
@@ -55,7 +56,7 @@ class DelayModel:
             axis=1,
         )
 
-        target = training_data[[self.target]]
+        target = training_data[self.target]
 
         # Setting the top 10 most important features
         top_10_features = [
@@ -73,14 +74,15 @@ class DelayModel:
 
         prioritized_features = features[top_10_features]
 
+        # TODO: With the saving model approach this is not needed
         # Set a cache of the data given for training the model,
         # so we can train it later if necessary
         self._set_training_data_cache(features=prioritized_features, target=target)
 
-        if target_column is None:
-            return prioritized_features
+        if target_column:
+            return prioritized_features, target
 
-        return prioritized_features, target
+        return prioritized_features
 
     def fit(self, features: pd.DataFrame, target: pd.DataFrame) -> None:
         """
@@ -113,6 +115,8 @@ class DelayModel:
         # Fitting the model
         self._model.fit(x_train, y_train)
 
+        # TODO: save model into a file
+
         return None
 
     def predict(self, features: pd.DataFrame) -> List[int]:
@@ -130,7 +134,7 @@ class DelayModel:
             self.fit(features=cached_features, target=cached_target)
 
         predictions = self._model.predict(features)
-        
+
         return predictions.tolist()
 
     def _add_additional_features(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -295,6 +299,7 @@ class DelayModel:
         self, features: pd.DataFrame, target: pd.DataFrame
     ) -> None:
         """
+        DEPRECATED
         Saves a cache for the features and target. They are neccesary in case
         the model is required to predict and it have not been trained yet.
 
@@ -307,6 +312,7 @@ class DelayModel:
 
     def _get_training_data_cache(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
+        DEPRECATED
         Provides the cache of training data cached values.
 
         Returns:
