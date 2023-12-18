@@ -54,7 +54,15 @@ class TestModel(unittest.TestCase):
 
         self.model.fit(features=features, target=target)
 
-        predicted_target = self.model._model.predict(features_validation)
+        """
+        The statement `self.model._model.predict(...)` violates the 
+        encapsulation OOP principle by accessing directly to the private 
+        attribute `_model`.
+        I changed that line by accessing to the `DelayModel::predict` public
+        method instead. 
+        """
+        # predicted_target = self.model._model.predict(features_validation)
+        predicted_target = self.model.predict(features_validation)
 
         report = classification_report(
             target_validation, predicted_target, output_dict=True
