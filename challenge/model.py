@@ -11,7 +11,7 @@ from typing import Tuple, Union, List
 
 class DelayModel:
     def __init__(self):
-        self.target = 'delay'
+        self.target = "delay"
 
         # Model is initialized in the `fit` method
         self._model = None
@@ -90,6 +90,7 @@ class DelayModel:
             features (pd.DataFrame): preprocessed data.
             target (pd.DataFrame): target.
         """
+
         # Settings
         TEST_SIZE = 0.33
         RANDOM_STATE = 42
@@ -111,7 +112,7 @@ class DelayModel:
 
         # Fitting the model
         self._model.fit(x_train, y_train)
-        
+
         return None
 
     def predict(self, features: pd.DataFrame) -> List[int]:
@@ -128,11 +129,20 @@ class DelayModel:
             cached_features, cached_target = self._get_training_data_cache()
             self.fit(features=cached_features, target=cached_target)
         pred = self._model.predict(features)
-        breakpoint()
 
         return pred
 
     def _add_additional_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add the additional features according to the data scientists analysis.
+
+        Args:
+            data (pd.DataFrame): raw data.
+
+        Returns:
+            (pd.DataFrame): raw data with the new columns.
+        """
+
         data = self._add_period_day_feature(data=data)
         data = self._add_high_season_feature(data=data)
         data = self._add_min_diff_feature(data=data)
@@ -141,24 +151,76 @@ class DelayModel:
         return data
 
     def _add_period_day_feature(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add the `period_day` feature, it assigns a category "mañana", "tarde",
+        or "noche" according to the value `Fecha-I`.
+
+        Args:
+            data (pd.DataFrame): raw data.
+
+        Returns:
+            (pd.DataFrame): raw data with the `period_day` column.
+        """
         data["period_day"] = data["Fecha-I"].apply(self._get_period_day)
         return data
 
     def _add_high_season_feature(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add the `high_season` feature.
+
+        Args:
+            data (pd.DataFrame): raw data.
+
+        Returns:
+            (pd.DataFrame): raw data with the `high_season` column.
+        """
         data["high_season"] = data["Fecha-I"].apply(self._is_high_season)
         return data
 
     def _add_min_diff_feature(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add the `min_diff` feature.
+
+        Args:
+            data (pd.DataFrame): raw data.
+
+        Returns:
+            (pd.DataFrame): raw data with the `min_diff` column.
+        """
+
         data["min_diff"] = data.apply(self._get_min_diff, axis=1)
         return data
 
     def _add_delay_feature(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add the `delay` feature: it is a 1 if the `min_diff` is bigger than
+        certain threshold in minutes and 0 otherwise. This threshold determines
+        if an operation was delayed or not.
+
+        Args:
+            data (pd.DataFrame): raw data.
+
+        Returns:
+            (pd.DataFrame): raw data with the `delay` column.
+        """
+
         THRESHOLD_IN_MINUTES = 15
 
         data["delay"] = np.where(data["min_diff"] > THRESHOLD_IN_MINUTES, 1, 0)
         return data
 
     def _get_period_day(self, date: str) -> str:
+        """
+        Return the string "mañana", "tarde" or "noche" according to the
+        value `Fecha-I`.
+
+        Args:
+            date (str): date string.
+
+        Returns:
+            (str): "mañana", "tarde" or "noche" .
+        """
+
         date_time = datetime.strptime(date, "%Y-%m-%d %H:%M:%S").time()
         morning_min = datetime.strptime("05:00", "%H:%M").time()
         morning_max = datetime.strptime("11:59", "%H:%M").time()
@@ -174,11 +236,22 @@ class DelayModel:
         elif afternoon_min < date_time < afternoon_max:
             return "tarde"
         elif (evening_min < date_time < evening_max) or (
-                night_min < date_time < night_max
+            night_min < date_time < night_max
         ):
             return "noche"
 
     def _is_high_season(self, date: str) -> int:
+        """
+        Return a 1 if the date lies between a high season date range, and
+        0 otherwise.
+
+        Args:
+            date (str): date string.
+
+        Returns:
+            (int): 0 or 1.
+        """
+
         date_year = int(date.split("-")[0])
         date = datetime.strptime(date, "%Y-%m-%d %H:%M:%S")
         range1_min = datetime.strptime("15-Dec", "%d-%b").replace(year=date_year)
@@ -201,6 +274,17 @@ class DelayModel:
             return 0
 
     def _get_min_diff(self, data: pd.DataFrame) -> float:
+        """
+        Return the minimal difference (in seconds) between the scheduled date
+        and time of the flight, and actual date and time of flight operation.
+
+        Args:
+            date (pd.DataFrame): raw data.
+
+        Returns:
+            (float): the difference in secondes between these two instants.
+        """
+
         fecha_o = datetime.strptime(data["Fecha-O"], "%Y-%m-%d %H:%M:%S")
         fecha_i = datetime.strptime(data["Fecha-I"], "%Y-%m-%d %H:%M:%S")
         min_diff = ((fecha_o - fecha_i).total_seconds()) / 60
@@ -209,10 +293,25 @@ class DelayModel:
     def _set_training_data_cache(
         self, features: pd.DataFrame, target: pd.DataFrame
     ) -> None:
+        """
+        Saves a cache for the features and target. They are neccesary in case
+        the model is required to predict and it have not been trained yet.
+
+        Args:
+            features (pd.DataFrame): features values.
+            target (pd.DataFrame): target values.
+        """
         self.cached_training_features = features
         self.cached_training_target = target
 
     def _get_training_data_cache(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Provides the cache of training data cached values.
+
+        Returns:
+            (pd.DataFrame): features values.
+            (pd.DataFrame): target values.
+        """
         if self.cached_training_features is None or self.cached_training_target is None:
             raise ModelNotTrainedException()
 
