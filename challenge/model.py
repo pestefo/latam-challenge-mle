@@ -11,9 +11,14 @@ from typing import Tuple, Union, List
 
 class DelayModel:
     def __init__(self):
-        # I instantiate the object in the `fit` method, there I have
-        # the `scale_pos_weight` parameter value
+        self.target = 'delay'
+
+        # Model is initialized in the `fit` method
         self._model = None
+
+        # Training data cache for lazy training
+        self.cached_training_features = None
+        self.cached_training_target = None
 
     def preprocess(
         self, data: pd.DataFrame, target_column: str = None
@@ -31,7 +36,7 @@ class DelayModel:
             pd.DataFrame: features.
         """
 
-        # Adding aditional features
+        # Adding additional features
         data = self._add_additional_features(data=data)
 
         # Shuffling data
@@ -40,6 +45,7 @@ class DelayModel:
             random_state=111,
         )
 
+        # Setting up the features and target training data
         features = pd.concat(
             [
                 pd.get_dummies(training_data["OPERA"], prefix="OPERA"),
@@ -49,7 +55,7 @@ class DelayModel:
             axis=1,
         )
 
-        target = training_data[["delay"]]
+        target = training_data[[self.target]]
 
         # Setting the top 10 most important features
         top_10_features = [
@@ -67,6 +73,13 @@ class DelayModel:
 
         prioritized_features = features[top_10_features]
 
+        # Set a cache of the data given for training the model,
+        # so we can train it later if necessary
+        self._set_training_data_cache(features=prioritized_features, target=target)
+
+        if target_column is None:
+            return prioritized_features
+
         return prioritized_features, target
 
     def fit(self, features: pd.DataFrame, target: pd.DataFrame) -> None:
@@ -80,6 +93,7 @@ class DelayModel:
         # Settings
         TEST_SIZE = 0.33
         RANDOM_STATE = 42
+        LEARNING_RATE = 0.01
 
         x_train, x_test, y_train, y_test = train_test_split(
             features, target, test_size=TEST_SIZE, random_state=RANDOM_STATE
@@ -92,12 +106,12 @@ class DelayModel:
 
         # Instantiating the model
         self._model = xgb.XGBClassifier(
-            random_state=1, learning_rate=0.01, scale_pos_weight=scale
+            random_state=1, learning_rate=LEARNING_RATE, scale_pos_weight=scale
         )
 
-        # Fitting the moel
+        # Fitting the model
         self._model.fit(x_train, y_train)
-
+        
         return None
 
     def predict(self, features: pd.DataFrame) -> List[int]:
@@ -110,7 +124,13 @@ class DelayModel:
         Returns:
             (List[int]): predicted targets.
         """
-        return self._model.predict(features)
+        if self._model is None:
+            cached_features, cached_target = self._get_training_data_cache()
+            self.fit(features=cached_features, target=cached_target)
+        pred = self._model.predict(features)
+        breakpoint()
+
+        return pred
 
     def _add_additional_features(self, data: pd.DataFrame) -> pd.DataFrame:
         data = self._add_period_day_feature(data=data)
@@ -138,7 +158,7 @@ class DelayModel:
         data["delay"] = np.where(data["min_diff"] > THRESHOLD_IN_MINUTES, 1, 0)
         return data
 
-    def _get_period_day(self, date: datetime) -> str:
+    def _get_period_day(self, date: str) -> str:
         date_time = datetime.strptime(date, "%Y-%m-%d %H:%M:%S").time()
         morning_min = datetime.strptime("05:00", "%H:%M").time()
         morning_max = datetime.strptime("11:59", "%H:%M").time()
@@ -149,16 +169,16 @@ class DelayModel:
         night_min = datetime.strptime("00:00", "%H:%M").time()
         night_max = datetime.strptime("4:59", "%H:%M").time()
 
-        if date_time > morning_min and date_time < morning_max:
+        if morning_min < date_time < morning_max:
             return "mañana"
-        elif date_time > afternoon_min and date_time < afternoon_max:
+        elif afternoon_min < date_time < afternoon_max:
             return "tarde"
-        elif (date_time > evening_min and date_time < evening_max) or (
-            date_time > night_min and date_time < night_max
+        elif (evening_min < date_time < evening_max) or (
+                night_min < date_time < night_max
         ):
             return "noche"
 
-    def _is_high_season(self, date: datetime) -> int:
+    def _is_high_season(self, date: str) -> int:
         date_year = int(date.split("-")[0])
         date = datetime.strptime(date, "%Y-%m-%d %H:%M:%S")
         range1_min = datetime.strptime("15-Dec", "%d-%b").replace(year=date_year)
@@ -171,10 +191,10 @@ class DelayModel:
         range4_max = datetime.strptime("30-Sep", "%d-%b").replace(year=date_year)
 
         if (
-            (date >= range1_min and date <= range1_max)
-            or (date >= range2_min and date <= range2_max)
-            or (date >= range3_min and date <= range3_max)
-            or (date >= range4_min and date <= range4_max)
+            (range1_min <= date <= range1_max)
+            or (range2_min <= date <= range2_max)
+            or (range3_min <= date <= range3_max)
+            or (range4_min <= date <= range4_max)
         ):
             return 1
         else:
@@ -185,3 +205,19 @@ class DelayModel:
         fecha_i = datetime.strptime(data["Fecha-I"], "%Y-%m-%d %H:%M:%S")
         min_diff = ((fecha_o - fecha_i).total_seconds()) / 60
         return min_diff
+
+    def _set_training_data_cache(
+        self, features: pd.DataFrame, target: pd.DataFrame
+    ) -> None:
+        self.cached_training_features = features
+        self.cached_training_target = target
+
+    def _get_training_data_cache(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        if self.cached_training_features is None or self.cached_training_target is None:
+            raise ModelNotTrainedException()
+
+        return self.cached_training_features, self.cached_training_target
+
+
+class ModelNotTrainedException(Exception):
+    pass
