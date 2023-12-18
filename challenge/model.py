@@ -128,9 +128,8 @@ class DelayModel:
         if self._model is None:
             cached_features, cached_target = self._get_training_data_cache()
             self.fit(features=cached_features, target=cached_target)
-        pred = self._model.predict(features)
 
-        return pred
+        return self._model.predict(features).tolist()
 
     def _add_additional_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """
