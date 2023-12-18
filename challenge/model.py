@@ -17,7 +17,7 @@ class DelayModel:
 
     def preprocess(
         self, data: pd.DataFrame, target_column: str = None
-    ) -> Union(Tuple[pd.DataFrame, pd.DataFrame], pd.DataFrame):
+    ) -> Union[Tuple[pd.DataFrame, pd.DataFrame], pd.DataFrame]:
         """
         Prepare raw data for training or predict.
 
@@ -49,7 +49,7 @@ class DelayModel:
             axis=1,
         )
 
-        target = training_data["delay"]
+        target = training_data[["delay"]]
 
         # Setting the top 10 most important features
         top_10_features = [
@@ -110,12 +110,12 @@ class DelayModel:
         Returns:
             (List[int]): predicted targets.
         """
-        return
+        return self._model.predict(features)
 
     def _add_additional_features(self, data: pd.DataFrame) -> pd.DataFrame:
         data = self._add_period_day_feature(data=data)
-        data = self._add_high_season(data=data)
-        data = self._add_min_diff(data=data)
+        data = self._add_high_season_feature(data=data)
+        data = self._add_min_diff_feature(data=data)
         data = self._add_delay_feature(data=data)
 
         return data
@@ -134,7 +134,9 @@ class DelayModel:
 
     def _add_delay_feature(self, data: pd.DataFrame) -> pd.DataFrame:
         THRESHOLD_IN_MINUTES = 15
+
         data["delay"] = np.where(data["min_diff"] > THRESHOLD_IN_MINUTES, 1, 0)
+        return data
 
     def _get_period_day(self, date: datetime) -> str:
         date_time = datetime.strptime(date, "%Y-%m-%d %H:%M:%S").time()
