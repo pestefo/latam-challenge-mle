@@ -1,4 +1,6 @@
+import json
 import pandas as pd
+import os
 import numpy as np
 import xgboost as xgb
 
@@ -11,7 +13,10 @@ from typing import Tuple, Union, List
 
 class DelayModel:
     def __init__(self):
-        self.target = "delay"
+        # Constants
+        self.TARGET_COLUMN = "delay"
+        self.PATH_TO_TRAINED_MODEL_FILE = "models/delay_trained_model.json"
+        self.PATH_TO_MODEL_SETTINGS_FILE = "settings/model_settings.json"
 
         # Model is initialized in the `fit` method
         self._model = None
@@ -45,7 +50,6 @@ class DelayModel:
             random_state=111,
         )
 
-
         # Setting up the features and target training data
         features = pd.concat(
             [
@@ -56,7 +60,7 @@ class DelayModel:
             axis=1,
         )
 
-        target = training_data[self.target]
+        target = training_data[[self.TARGET_COLUMN]]
 
         # Setting the top 10 most important features
         top_10_features = [
@@ -74,11 +78,6 @@ class DelayModel:
 
         prioritized_features = features[top_10_features]
 
-        # TODO: With the saving model approach this is not needed
-        # Set a cache of the data given for training the model,
-        # so we can train it later if necessary
-        self._set_training_data_cache(features=prioritized_features, target=target)
-
         if target_column:
             return prioritized_features, target
 
@@ -92,14 +91,15 @@ class DelayModel:
             features (pd.DataFrame): preprocessed data.
             target (pd.DataFrame): target.
         """
-
-        # Settings
-        TEST_SIZE = 0.33
-        RANDOM_STATE = 42
-        LEARNING_RATE = 0.01
+        # Training Settings
+        training_settings = {"TEST_SIZE": 0.33, "RANDOM_STATE": 42}
+        target_series = target[self.TARGET_COLUMN]
 
         x_train, x_test, y_train, y_test = train_test_split(
-            features, target, test_size=TEST_SIZE, random_state=RANDOM_STATE
+            features,
+            target_series,
+            test_size=training_settings["TEST_SIZE"],
+            random_state=training_settings["RANDOM_STATE"],
         )
 
         # Calculating scale
@@ -107,15 +107,26 @@ class DelayModel:
         n_y1 = len(y_train[y_train == 1])
         scale = n_y0 / n_y1
 
+        # Save model settings for future model instantiation
+        model_settings = {
+            "RANDOM_STATE": 1,
+            "LEARNING_RATE": 0.01,
+            "SCALE": scale,
+        }
+        self._save_model_settings(settings=model_settings)
+
         # Instantiating the model
         self._model = xgb.XGBClassifier(
-            random_state=1, learning_rate=LEARNING_RATE, scale_pos_weight=scale
+            random_state=model_settings["RANDOM_STATE"],
+            learning_rate=model_settings["LEARNING_RATE"],
+            scale_pos_weight=model_settings["SCALE"],
         )
 
         # Fitting the model
         self._model.fit(x_train, y_train)
 
-        # TODO: save model into a file
+        # Save the trained model for eventual reuse
+        self._save_trained_model(model=self._model)
 
         return None
 
@@ -129,11 +140,9 @@ class DelayModel:
         Returns:
             (List[int]): predicted targets.
         """
-        if self._model is None:
-            cached_features, cached_target = self._get_training_data_cache()
-            self.fit(features=cached_features, target=cached_target)
+        model = self._get_model()
 
-        predictions = self._model.predict(features)
+        predictions = model.predict(features)
 
         return predictions.tolist()
 
@@ -295,34 +304,69 @@ class DelayModel:
         min_diff = ((fecha_o - fecha_i).total_seconds()) / 60
         return min_diff
 
-    def _set_training_data_cache(
-        self, features: pd.DataFrame, target: pd.DataFrame
-    ) -> None:
+    def _save_model_settings(self, settings: dict) -> None:
         """
-        DEPRECATED
-        Saves a cache for the features and target. They are neccesary in case
-        the model is required to predict and it have not been trained yet.
+        Writes the model_settings into a file
 
         Args:
-            features (pd.DataFrame): features values.
-            target (pd.DataFrame): target values.
+            settings (dict): dictionary with the model settings.
         """
-        self.cached_training_features = features
-        self.cached_training_target = target
 
-    def _get_training_data_cache(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        with open(self.PATH_TO_MODEL_SETTINGS_FILE, "w") as fp:
+            json.dump(settings, fp)
+
+        return None
+
+    def _get_model_settings(self) -> dict:
         """
-        DEPRECATED
-        Provides the cache of training data cached values.
+        Return the settings to instantiate the model.
 
         Returns:
-            (pd.DataFrame): features values.
-            (pd.DataFrame): target values.
+            (dict): dictionary with the model settings.
         """
-        if self.cached_training_features is None or self.cached_training_target is None:
-            raise ModelNotTrainedException()
 
-        return self.cached_training_features, self.cached_training_target
+        with open(self.PATH_TO_MODEL_SETTINGS_FILE, "r") as fp:
+            return json.load(fp)
+
+    def _save_trained_model(self, model: xgb.XGBClassifier) -> None:
+        """
+        Writes the model_settings into a file
+
+        Args:
+            settings (dict): dictionary with the model settings.
+        """
+        model.save_model(self.PATH_TO_TRAINED_MODEL_FILE)
+
+    def _get_model(self) -> xgb.XGBClassifier:
+        """
+        Return the model object already trained saved as a model cache.
+
+        Returns:
+            (dict): dictionary with the model settings.
+
+        Side effects:
+            In case the model instance has not been initialized and there
+            is model cache the ModelNotTrainedException exception is raised.
+        """
+
+        if self._model is None:
+            model_settings = self._get_model_settings()
+
+            if os.path.exists(self.PATH_TO_TRAINED_MODEL_FILE):
+                try:
+                    model = xgb.XGBClassifier(
+                        random_state=model_settings["RANDOM_STATE"],
+                        learning_rate=model_settings["LEARNING_RATE"],
+                        scale_pos_weight=model_settings["SCALE"],
+                    )
+
+                    model.load_model(self.PATH_TO_TRAINED_MODEL_FILE)
+
+                    self._model = model
+                except Exception:
+                    raise ModelNotTrainedException()
+
+        return self._model
 
 
 class ModelNotTrainedException(Exception):
