@@ -1,8 +1,9 @@
 import unittest
-import pandas as pd
 
+import pandas as pd
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
+
 from challenge.model import DelayModel
 
 
@@ -28,7 +29,9 @@ class TestModel(unittest.TestCase):
         self.data = pd.read_csv(filepath_or_buffer="./data/data.csv")
 
     def test_model_preprocess_for_training(self):
-        features, target = self.model.preprocess(data=self.data, target_column="delay")
+        features, target = self.model.preprocess(
+            data=self.data, target_column="delay"
+        )
 
         assert isinstance(features, pd.DataFrame)
         assert features.shape[1] == len(self.FEATURES_COLS)
@@ -46,7 +49,9 @@ class TestModel(unittest.TestCase):
         assert set(features.columns) == set(self.FEATURES_COLS)
 
     def test_model_fit(self):
-        features, target = self.model.preprocess(data=self.data, target_column="delay")
+        features, target = self.model.preprocess(
+            data=self.data, target_column="delay"
+        )
 
         _, features_validation, _, target_validation = train_test_split(
             features, target, test_size=0.33, random_state=42
@@ -81,5 +86,6 @@ class TestModel(unittest.TestCase):
         assert isinstance(predicted_targets, list)
         assert len(predicted_targets) == features.shape[0]
         assert all(
-            isinstance(predicted_target, int) for predicted_target in predicted_targets
+            isinstance(predicted_target, int)
+            for predicted_target in predicted_targets
         )
