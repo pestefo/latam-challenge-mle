@@ -268,14 +268,26 @@ class DelayModel:
 
         date_year = int(date.split("-")[0])
         date = datetime.strptime(date, "%Y-%m-%d %H:%M:%S")
-        range1_min = datetime.strptime("15-Dec", "%d-%b").replace(year=date_year)
-        range1_max = datetime.strptime("31-Dec", "%d-%b").replace(year=date_year)
+        range1_min = datetime.strptime("15-Dec", "%d-%b").replace(
+            year=date_year
+        )
+        range1_max = datetime.strptime("31-Dec", "%d-%b").replace(
+            year=date_year
+        )
         range2_min = datetime.strptime("1-Jan", "%d-%b").replace(year=date_year)
         range2_max = datetime.strptime("3-Mar", "%d-%b").replace(year=date_year)
-        range3_min = datetime.strptime("15-Jul", "%d-%b").replace(year=date_year)
-        range3_max = datetime.strptime("31-Jul", "%d-%b").replace(year=date_year)
-        range4_min = datetime.strptime("11-Sep", "%d-%b").replace(year=date_year)
-        range4_max = datetime.strptime("30-Sep", "%d-%b").replace(year=date_year)
+        range3_min = datetime.strptime("15-Jul", "%d-%b").replace(
+            year=date_year
+        )
+        range3_max = datetime.strptime("31-Jul", "%d-%b").replace(
+            year=date_year
+        )
+        range4_min = datetime.strptime("11-Sep", "%d-%b").replace(
+            year=date_year
+        )
+        range4_max = datetime.strptime("30-Sep", "%d-%b").replace(
+            year=date_year
+        )
 
         if (
             (range1_min <= date <= range1_max)
