@@ -1,14 +1,12 @@
 import json
-import pandas as pd
 import os
-import numpy as np
-import xgboost as xgb
-
-from sklearn.model_selection import train_test_split
-from sklearn.utils import shuffle
-
 from datetime import datetime
-from typing import Tuple, Union, List
+from typing import List, Tuple, Union
+
+import numpy as np
+import pandas as pd
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
 
 
 class DelayModel:
@@ -42,46 +40,19 @@ class DelayModel:
         """
 
         # Adding additional features
-        data = self._add_additional_features(data=data)
+        data_with_additiona_features = self._add_additional_features(data=data)
 
-        # Shuffling data
-        training_data = shuffle(
-            data[["OPERA", "MES", "TIPOVUELO", "SIGLADES", "DIANOM", "delay"]],
-            random_state=111,
+        # Apply one-hot encoding to categorical columns
+        features = self._apply_one_hot_encoding(
+            data=data_with_additiona_features
         )
-
-        # Setting up the features and target training data
-        features = pd.concat(
-            [
-                pd.get_dummies(training_data["OPERA"], prefix="OPERA"),
-                pd.get_dummies(training_data["TIPOVUELO"], prefix="TIPOVUELO"),
-                pd.get_dummies(training_data["MES"], prefix="MES"),
-            ],
-            axis=1,
-        )
-
-        target = training_data[[self.TARGET_COLUMN]]
-
-        # Setting the top 10 most important features
-        top_10_features = [
-            "OPERA_Latin American Wings",
-            "MES_7",
-            "MES_10",
-            "OPERA_Grupo LATAM",
-            "MES_12",
-            "TIPOVUELO_I",
-            "MES_4",
-            "MES_11",
-            "OPERA_Sky Airline",
-            "OPERA_Copa Air",
-        ]
-
-        prioritized_features = features[top_10_features]
 
         if target_column:
-            return prioritized_features, target
+            target = data_with_additiona_features[[self.TARGET_COLUMN]]
 
-        return prioritized_features
+            return features, target
+
+        return features
 
     def fit(self, features: pd.DataFrame, target: pd.DataFrame) -> None:
         """
@@ -103,9 +74,7 @@ class DelayModel:
         )
 
         # Calculating scale
-        n_y0 = len(y_train[y_train == 0])
-        n_y1 = len(y_train[y_train == 1])
-        scale = n_y0 / n_y1
+        scale = self._calculate_scale(y_train=y_train)
 
         # Save model settings for future model instantiation
         model_settings = {
@@ -120,6 +89,7 @@ class DelayModel:
             random_state=model_settings["RANDOM_STATE"],
             learning_rate=model_settings["LEARNING_RATE"],
             scale_pos_weight=model_settings["SCALE"],
+            enable_categorical=True,
         )
 
         # Fitting the model
@@ -274,8 +244,12 @@ class DelayModel:
         range1_max = datetime.strptime("31-Dec", "%d-%b").replace(
             year=date_year
         )
-        range2_min = datetime.strptime("1-Jan", "%d-%b").replace(year=date_year)
-        range2_max = datetime.strptime("3-Mar", "%d-%b").replace(year=date_year)
+        range2_min = datetime.strptime("1-Jan", "%d-%b").replace(
+            year=date_year
+        )
+        range2_max = datetime.strptime("3-Mar", "%d-%b").replace(
+            year=date_year
+        )
         range3_min = datetime.strptime("15-Jul", "%d-%b").replace(
             year=date_year
         )
@@ -315,6 +289,92 @@ class DelayModel:
         fecha_i = datetime.strptime(data["Fecha-I"], "%Y-%m-%d %H:%M:%S")
         min_diff = ((fecha_o - fecha_i).total_seconds()) / 60
         return min_diff
+
+    def _calculate_scale(self, y_train: pd.DataFrame) -> float:
+        """
+        Calculate the scale parameter
+
+        Args:
+            y_train (pd.DataFrame): y training data.
+
+        Returns:
+            (float): scale value.
+        """
+        n_y0 = len(y_train[y_train == 0])
+        n_y1 = len(y_train[y_train == 1])
+        return n_y0 / n_y1
+
+    def _apply_one_hot_encoding(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        As the most relevant features are categorical, it is needed to apply
+        one-hot encoding. This method applies it to the `data` dataframe by
+        leveraging the use of the `top_10_features` obtained through the data
+        scientist's analysis.
+
+        Args:
+            date (pd.DataFrame): raw data.
+
+        Returns:
+            (pd.DataFrame): one-hot encoded features.
+        """
+
+        # Prioritized features discovered during the analysis
+        top_10_features = [
+            "OPERA_Latin American Wings",
+            "MES_7",
+            "MES_10",
+            "OPERA_Grupo LATAM",
+            "MES_12",
+            "TIPOVUELO_I",
+            "MES_4",
+            "MES_11",
+            "OPERA_Sky Airline",
+            "OPERA_Copa Air",
+        ]
+
+        # One-hot encoding the relevant categorical columns
+        opera_dummies = pd.get_dummies(data["OPERA"], prefix="OPERA")
+        tipo_vuelo_dummies = pd.get_dummies(
+            data["TIPOVUELO"], prefix="TIPOVUELO"
+        )
+        mes_dummies = pd.get_dummies(data["MES"], prefix="MES")
+
+        # Ensure presence of `top_10_features` in one-hot encoded DataFrames,
+        # fill with zeros if missing
+        for column in top_10_features:
+            if column not in opera_dummies.columns:
+                opera_dummies[column] = 0
+            if column not in tipo_vuelo_dummies.columns:
+                tipo_vuelo_dummies[column] = 0
+            if column not in mes_dummies.columns:
+                mes_dummies[column] = 0
+
+        # Create the feature dataset by concatenated the one-hot encoded
+        # dataframes
+        features = pd.concat(
+            [
+                opera_dummies[
+                    [
+                        column
+                        for column in top_10_features
+                        if "OPERA_" in column
+                    ]
+                ],
+                tipo_vuelo_dummies[
+                    [
+                        column
+                        for column in top_10_features
+                        if "TIPOVUELO_" in column
+                    ]
+                ],
+                mes_dummies[
+                    [column for column in top_10_features if "MES_" in column]
+                ],
+            ],
+            axis=1,
+        )
+
+        return features
 
     def _save_model_settings(self, settings: dict) -> None:
         """
@@ -370,6 +430,7 @@ class DelayModel:
                         random_state=model_settings["RANDOM_STATE"],
                         learning_rate=model_settings["LEARNING_RATE"],
                         scale_pos_weight=model_settings["SCALE"],
+                        enable_categorical=True,
                     )
 
                     model.load_model(self.PATH_TO_TRAINED_MODEL_FILE)
