@@ -34,8 +34,8 @@ class FlightModel(BaseModel):
     OPERA: str
     TIPOVUELO: str
     MES: int
-    FECHA_I: str
-    FECHA_O: str
+    Fecha_I: str
+    Fecha_O: str
 
     @validator("OPERA")
     def valid_flight_operator(cls, operator):
@@ -46,7 +46,7 @@ class FlightModel(BaseModel):
     @validator("TIPOVUELO")
     def vuelo_is_either_N_or_I(cls, tipo_vuelo_):
         if tipo_vuelo_ not in ("N", "I"):
-            raise ValueError("Must provide a `TIPOVUELO`")
+            raise ValueError("Must provide a valid `TIPOVUELO`")
         return tipo_vuelo_
 
     @validator("MES")
@@ -55,15 +55,21 @@ class FlightModel(BaseModel):
             raise ValueError("Must provide a valid MES")
         return month_number
 
-    @validator("FECHA_I")
-    @validator("FECHA_O")
-    def fecha_in_isoformat(cls, fecha):
+    @validator("Fecha_I")
+    def fecha_i_validator(cls, fecha):
+        return cls.fecha_in_isoformat(fecha)
+
+    @validator("Fecha_O")
+    def fecha_o_validator(cls, fecha):
+        return cls.fecha_in_isoformat(fecha)
+
+    def fecha_in_isoformat(fecha):
         try:
             datetime.fromisoformat(fecha)
             return fecha
 
         except ValueError:
-            raise ValueError("Must provide a valid `FECHA-I` or `FECHA-O`")
+            raise ValueError("Must provide a valid `Fecha_I` or `Fecha_O`")
 
 
 class FlightListModel(BaseModel):
