@@ -12,6 +12,8 @@ class StressUser(HttpUser):
                         "OPERA": "Aerolineas Argentinas",
                         "TIPOVUELO": "N",
                         "MES": 3,
+                        "Fecha_I": "2017-03-05 09:50:00",
+                        "Fecha_O": "2017-03-05 10:50:00",
                     }
                 ]
             },
@@ -23,7 +25,13 @@ class StressUser(HttpUser):
             "/predict",
             json={
                 "flights": [
-                    {"OPERA": "Grupo LATAM", "TIPOVUELO": "N", "MES": 3}
+                    {
+                        "OPERA": "Grupo LATAM",
+                        "TIPOVUELO": "N",
+                        "MES": 3,
+                        "Fecha_I": "2017-03-05 11:50:00",
+                        "Fecha_O": "2017-03-05 14:50:00",
+                    }
                 ]
             },
         )
