@@ -1,88 +1,89 @@
 # Challenge Documentation
 
-Decisions, assumptions, and comments will be presented in this file. 
-They are divided by the stages of the solution (parts).
+Author: Pablo Estefó
 
-# Part I
+Date: 19/12/2023
+
+## Part I
 
 ### Transcription of the notebook into the api implementation
 
-As the data scientist is responsible for the analysis, its background rationale and completeness are trustworthy.
-
-I found a couple if minor mistakes in the syntaxis related to calling functiions with keywords arguments only in some of the arguments and not all of them.
-
-I found also that the `training_data` defined in 4.a was not used, ergo, it was not used when training the models.
-
-
-### Model decision
-
-In addition to the DS's analysis, I was interested in the linearity correlation of the `delay` with all the other variables. I used the Cramér's V metric for correlation, it returns a value between 0 and 1which 0 = no association and 1 = complete association. 
-
-The implementation of the script:
+I found a couple if minor mistakes in the syntax related to calling functions with keyword arguments only in some of the arguments and not all of them. Example
 
 ```python
-import numpy as np
-
-def cramers_v(confusion_matrix):
-    chi2 = chi2_contingency(confusion_matrix)[0]
-    n = confusion_matrix.sum().sum()
-    phi2 = chi2 / n
-    r, k = confusion_matrix.shape
-    phi2corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
-    rcorr = r - ((r-1)**2)/(n-1)
-    kcorr = k - ((k-1)**2)/(n-1)
-    return np.sqrt(phi2corr / min((kcorr-1), (rcorr-1)))
-
-# Linearity calculation: 0 = no association, 1 = complete association.
-print(f"Cramér's correlation for 'delay'")
-metrics_to_compare = ["Fecha-I","Vlo-I","Ori-I","Des-I","Emp-I","Fecha-O","Vlo-O","Ori-O","Des-O","Emp-O","DIA","MES","AÑO","DIANOM","TIPOVUELO","OPERA","SIGLAORI","SIGLADES", 'high_season', 'min_diff', 'period_day']
-for metric in metrics_to_compare:
-    confusion_matrix = pd.crosstab(data['delay'], data[metric])
-    cramer_v = cramers_v(confusion_matrix)
-    print(f"'delay' vs {metric}: {cramer_v}")
+# Original
+sns.barplot(data.index, data.values, color='lightblue', alpha=0.8)
+# Fix
+sns.barplot(x=data.index, y=data.values, color='lightblue', alpha=0.8)
 ```
 
-Results:
+I found also that the `training_data` defined in **4.a** was not used, ergo, it was not used when training the models.
 
-#### Cramér's correlation  (Cramér's V) for `delay`
+As the data scientist is responsible for the analysis, its background rationale and completeness are trustworthy.
 
-1. `delay` vs `Fecha-I`: 0.13410230750276278
-1. `delay` vs `Vlo-I`: 0.276025179565339
-1. `delay` vs `Des-I`: 0.16418834011433514
-1. `delay` vs `Emp-I`: 0.1697730046212206
-1. `delay` vs `Fecha-O`: 0.06104773572098205
-1. `delay` vs `Vlo-O`: 0.28343883081755594
-1. `delay` vs `Des-O`: 0.16417768723394746
-1. `delay` vs `Emp-O`: 0.18121062751092176
-1. `delay` vs `DIA`: 0.052624562353062655
-1. `delay` vs `MES`: 0.13117919736637917
-1. `delay` vs `AÑO`: 0.0
-1. `delay` vs `DIANOM`: 0.05604163815441127
-1. `delay` vs `TIPOVUELO`: 0.09618122383571627
-1. `delay` vs `OPERA`: 0.16185084083276668
-1. `delay` vs `SIGLADES`: 0.1639824365749197
-1. `delay` vs `high_season`: 0.02063651082400301
-1. `delay` vs `min_diff`: 0.998723600392344
-1. `delay` vs `period_day`: 0.04590699231013053
+### Choosing a model
 
-We can see that there is no linear correlation between `delay` and the othe variables.
-The only exception is `min_diff`.
+The performance given by the models (balanced and featured optimized) was:
 
-Considering:
-1. No significant differences in performance between both models
-1. Non-linearity interactions between the target variable and the rest *and/or* no dependency at all between 
-1. The size of the dataset may be large (XGBoost handles it better)
+***XGBoostClassifier***
 
-I propose using XGBoost for this problem. 
+| class | precision | recall | f1-score | support |
+| --- | --- | --- | --- | --- |
+| 0 | 0.88  | 0.52 | 0.65 | 18403 |
+| 1 | 0.24 | 0.68 | 0.36 | 4105 |
+
+***LogisticRegression***
+
+| class | precision | recall | f1-score | support |
+| --- | --- | --- | --- | --- |
+| 0 | 0.87 | 0.59 | 0.7 | 18403 |
+| 1 | 0.25 | 0.61 | 0.35 | 4105 |
+
+I talked with an ex-employee for LATAM to understand the severity of False Negatives and False Positives. I understood that False Negatives (not identifying a delayed flight) have the most negative consequences on the business side: client experience and budget-for-delays are highly impacted. A high amount of False Positives would mean a more conservative approach which have to be acknowledged by the stakeholders as it may increase the emergency budget unnecessarily. 
+
+Given that analysis, we should care the most of the value of ************recall for class 1************. The results show that the XGBoostClassifier performs slightly better than LogisticRegression, but, as this metric is critical for the reliability of the system, the first model is the chosen one.
+
+In addition, we have to consider that XGBoostClassifier typically takes more time and computational resources for training than LogisticRegression. In such case, the historical data have to be well curated that a high quality and small enough to speed up this process without affecting its recall performance. This also has to be taken into account when scheduling training the model.
+
+Another relevant aspect is explainability. LogisticRegression is a less obscure model than XGBoostClassifier. The chosen model behaves more like a “black box” and we only rely on the perfomance metrics.
+
+In conclusion, we choose the XGBoostClassifier because of its ability to detect False Negatives which are the most impactful cases in the operation.
+
+### Technical notes on the implementation
+
+The implementation of the `DelayModel` class respected the given template of the public methods: `preprocess`, `fit` and `predict`.
+
+I implemented a cache for the `XGBoostClassifier` instance, in order to not to train the model every time  `DelayModel` class is instantiated. 
+
+We can highlight the separation of concerns of the different private methods that encapsulate context-related statements for improving maintainability and readability. Also, I use descripive names and every method ios werll documented
+
+I made a correction in the `test_model_fit` of the `test_model.py` . In the fourth statement it calls the `predict` function directly from the private attribute `_model` instead of using the public method `DelayModel::predict` as it should. It is wrong because It breaks the encapsulation OOP principle and it does not align with the purpose of the test battery. The fix is the following:
+
+```python
+# Original
+predicted_target = self.model._model.predict(features_validation)
+# Fix
+predicted_target = self.model.predict(features_validation)
+```
 
 ## Part II
 
-...
+For the api implementation the work was divided in two parts: make use of a `DelayModel` instance to handle the hits to the `/predict` endpoint, and the validation of the requests’ payload.
+
+For the first part, there is not much to say: an instance of `DelayModel` is available for all the endpoints.
+
+For the second part, I made use of the `Pydantic` library that is the recommended library for data model validation. We modeled the requests’ data using the `FlightListModel` which is a list of `FlightModel`. This model has validations for the inputs, for example: `TIPOVUELO` attribute is a `string` that accepts the values `"N"` or `"I"` only. Both the input and the output are handled using these pydantic models.
+
+I added the `Fecha_I` and `Fecha_O` keys for valid requests as they are needed when adding the additional attributes in the `DelayModel::preprocess` method. They they match to the `Fecha-I` and `Fecha-O` data columns respectively.
+
+I fixed a typo in the tests `test_..._unkown_...` for `test_..._unknown_...`. I also added two tests for testing: `Fecha-I`/ `Fecha-O` keys (`test_should_failed_unknown_fecha`), and one for testing predicting more than one flight (`test_should_get_predict_more_than_one_flight`).
 
 ## Part III
 
-...
+I deployed the API in a AWS EC2 instance that can be accessed through the URL: `http://54.234.143.225/[ENDPOINT]`
+
+It was tested through POSTMAN requests (see the `./docs/LATAM-Challenge-Requests.postman_collection.json` file)
 
 ## Part IV
 
-...
+Not addressed.
